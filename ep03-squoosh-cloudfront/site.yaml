@@ -1,0 +1,74 @@
+Resources:
+  Site:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: CHANGE-ME
+
+  Access:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Ref Site
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  CDN:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        Origins:
+          - Id: site
+            DomainName: !GetAtt Site.RegionalDomainName
+            OriginAccessControlId: !Ref Access
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+        DefaultCacheBehavior:
+          TargetOriginId: site
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          FunctionAssociations:
+            - EventType: viewer-response
+              FunctionARN: !GetAtt Utf8.FunctionARN
+          # AWS managed cache policy "CachingOptimized"
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+
+  # Squoosh's page does not say it is UTF-8 and S3 does not either,
+  # so its arrows would show up as garbage. This adds the charset.
+  Utf8:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub "${Site}-utf8"
+      AutoPublish: true
+      FunctionConfig:
+        Comment: add charset=utf-8 to html
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          const type = event.response.headers['content-type'];
+          if (type && type.value === 'text/html') {
+            type.value = 'text/html; charset=utf-8';
+          }
+          return event.response;
+        }
+
+  CdnRead:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref Site
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub "${Site.Arn}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${CDN}"
+
+Outputs:
+  URL:
+    Value: !Sub "https://${CDN.DomainName}"

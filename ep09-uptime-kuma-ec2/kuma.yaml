@@ -1,0 +1,76 @@
+Resources:
+  Network:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+
+  Gateway:
+    Type: AWS::EC2::InternetGateway
+
+  GatewayLink:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Network
+      InternetGatewayId: !Ref Gateway
+
+  Routes:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Network
+
+  InternetRoute:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayLink
+    Properties:
+      RouteTableId: !Ref Routes
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref Gateway
+
+  Subnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Network
+      CidrBlock: 10.0.0.0/24
+      MapPublicIpOnLaunch: true
+
+  SubnetRoutes:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref Subnet
+      RouteTableId: !Ref Routes
+
+  Firewall:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: web traffic in
+      VpcId: !Ref Network
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+  Server:
+    Type: AWS::EC2::Instance
+    DependsOn: [InternetRoute, SubnetRoutes]
+    Properties:
+      InstanceType: CHANGE-ME
+      ImageId: "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64}}"
+      SubnetId: !Ref Subnet
+      SecurityGroupIds: [!Ref Firewall]
+      Tags:
+        - Key: Name
+          Value: uptime-kuma
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          dnf install -y docker
+          systemctl enable --now docker
+          docker run -d --restart=always \
+            -p 80:3001 -v kuma:/app/data \
+            -e UPTIME_KUMA_DB_TYPE=sqlite \
+            louislam/uptime-kuma:2-slim
+
+Outputs:
+  URL:
+    Value: !Sub http://${Server.PublicIp}

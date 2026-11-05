@@ -1,0 +1,25 @@
+Resources:
+  Site:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: CHANGE-ME
+      WebsiteConfiguration:
+        IndexDocument: index.html
+      PublicAccessBlockConfiguration:
+        BlockPublicPolicy: false
+        RestrictPublicBuckets: false
+
+  PublicRead:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref Site
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action: s3:GetObject
+            Resource: !Sub "${Site.Arn}/*"
+
+Outputs:
+  URL:
+    Value: !GetAtt Site.WebsiteURL

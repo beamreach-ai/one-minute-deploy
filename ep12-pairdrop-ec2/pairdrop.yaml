@@ -1,0 +1,84 @@
+# PairDrop on one small EC2 instance, own VPC.
+Parameters:
+  # true: relay files through the server when
+  # a device cannot use WebRTC (VPNs block it)
+  WsFallback:
+    Type: String
+    Default: false
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+
+  Gateway:
+    Type: AWS::EC2::InternetGateway
+
+  GatewayToVpc:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref Gateway
+
+  Routes:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+
+  RouteOut:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayToVpc
+    Properties:
+      RouteTableId: !Ref Routes
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref Gateway
+
+  Subnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.0.0.0/24
+      MapPublicIpOnLaunch: true
+
+  SubnetRoutes:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref Subnet
+      RouteTableId: !Ref Routes
+
+  Firewall:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: PairDrop, http only
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+  Server:
+    Type: AWS::EC2::Instance
+    DependsOn: [RouteOut, SubnetRoutes]
+    Properties:
+      InstanceType: t3.micro
+      # the newest Amazon Linux 2023, from AWS's public SSM parameter
+      ImageId: "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64}}"
+      SubnetId: !Ref Subnet
+      SecurityGroupIds: [!Ref Firewall]
+      Tags:
+        - Key: Name
+          Value: pairdrop
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          dnf install -y docker
+          systemctl enable --now docker
+          docker run -d --restart always -p 80:3000 \
+            -e WS_FALLBACK=${WsFallback} \
+            ghcr.io/schlagmichdoch/pairdrop
+
+Outputs:
+  URL:
+    Value: !Sub http://${Server.PublicIp}

@@ -9,7 +9,18 @@ commands shown in the video, and a cleanup script.
 
 | # | App | Where | How | Folder |
 |---|-----|-------|-----|--------|
-| 01 | [2048](https://github.com/gabrielecirulli/2048) (the game) | AWS S3 static website | CloudFormation | [`ep01-2048-s3/`](ep01-2048-s3/) |
+| 01 | [2048](https://github.com/gabrielecirulli/2048) | S3 bucket | with CloudFormation | [`ep01-2048-s3/`](ep01-2048-s3/) |
+| 02 | [Excalidraw](https://github.com/excalidraw/excalidraw) | S3 + CloudFront | with CloudFormation | [`ep02-excalidraw-cloudfront/`](ep02-excalidraw-cloudfront/) |
+| 03 | [Squoosh](https://github.com/GoogleChromeLabs/squoosh) | S3 + CloudFront | with CloudFormation | [`ep03-squoosh-cloudfront/`](ep03-squoosh-cloudfront/) |
+| 04 | [draw.io](https://github.com/jgraph/drawio) | S3 bucket | with CloudFormation | [`ep04-drawio-s3/`](ep04-drawio-s3/) |
+| 05 | [CyberChef](https://github.com/gchq/CyberChef) | S3 bucket | from a release zip | [`ep05-cyberchef-s3/`](ep05-cyberchef-s3/) |
+| 06 | [IT-Tools](https://github.com/CorentinTh/it-tools) | S3 + CloudFront | with CloudFormation | [`ep06-it-tools-cloudfront/`](ep06-it-tools-cloudfront/) |
+| 07 | [Memos](https://github.com/usememos/memos) | Lightsail container | with the AWS CLI | [`ep07-memos-lightsail/`](ep07-memos-lightsail/) |
+| 08 | [linkding](https://github.com/sissbruecker/linkding) | Lightsail container | with the AWS CLI | [`ep08-linkding-lightsail/`](ep08-linkding-lightsail/) |
+| 09 | [Uptime Kuma](https://github.com/louislam/uptime-kuma) | EC2 instance | with CloudFormation | [`ep09-uptime-kuma-ec2/`](ep09-uptime-kuma-ec2/) |
+| 10 | [Actual Budget](https://github.com/actualbudget/actual) | ECS Fargate | with CloudFormation | [`ep10-actual-fargate/`](ep10-actual-fargate/) |
+| 11 | [LibreSpeed](https://github.com/librespeed/speedtest) | ECS Fargate | with CloudFormation | [`ep11-librespeed-fargate/`](ep11-librespeed-fargate/) |
+| 12 | [PairDrop](https://github.com/schlagmichdoch/PairDrop) | EC2 instance | with CloudFormation | [`ep12-pairdrop-ec2/`](ep12-pairdrop-ec2/) |
 
 AWS only for now; Azure and GCP episodes will follow.
 

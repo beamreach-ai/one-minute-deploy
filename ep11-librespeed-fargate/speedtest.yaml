@@ -1,0 +1,95 @@
+Resources:
+  Network:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+
+  Gateway:
+    Type: AWS::EC2::InternetGateway
+
+  GatewayLink:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Network
+      InternetGatewayId: !Ref Gateway
+
+  Routes:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Network
+
+  InternetRoute:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayLink
+    Properties:
+      RouteTableId: !Ref Routes
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref Gateway
+
+  Subnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Network
+      CidrBlock: 10.0.0.0/24
+
+  SubnetRoutes:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref Subnet
+      RouteTableId: !Ref Routes
+
+  Firewall:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: web traffic in
+      VpcId: !Ref Network
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: speedtest
+
+  Task:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: speedtest
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: 256
+      Memory: 512
+      ContainerDefinitions:
+        - Name: speedtest
+          Image: ghcr.io/librespeed/speedtest
+          PortMappings:
+            - ContainerPort: 80
+          Environment:
+            - Name: MODE
+              Value: standalone
+            - Name: WEBPORT
+              Value: "80"
+            - Name: USE_NEW_DESIGN
+              Value: "true"
+            - Name: TAGLINE
+              Value: self-hosted on AWS Fargate
+            - Name: TITLE
+              Value: CHANGE-ME
+
+  Service:
+    Type: AWS::ECS::Service
+    DependsOn: [InternetRoute, SubnetRoutes]
+    Properties:
+      ServiceName: speedtest
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref Task
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets: [!Ref Subnet]
+          SecurityGroups: [!Ref Firewall]

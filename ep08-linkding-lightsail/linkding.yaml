@@ -1,0 +1,14 @@
+serviceName: linkding
+containers:
+  linkding:
+    image: sissbruecker/linkding:latest
+    environment:
+      LD_SUPERUSER_NAME: demo
+      LD_SUPERUSER_PASSWORD: CHANGE-ME
+    ports:
+      "9090": HTTP
+publicEndpoint:
+  containerName: linkding
+  containerPort: 9090
+  healthCheck:
+    path: /health

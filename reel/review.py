@@ -2,15 +2,21 @@
 """Build one review page for every built episode under a data root.
 
 Scans <root>/*/out/meta.json (written by build.py), and writes
-<root>/review/index.html: an episode list, a player with section jump buttons,
-and an approve / needs-changes verdict with notes per reel. "Copy feedback"
-puts every verdict and note on the clipboard.
+<root>/review/: index.html plus reels/ and posters/, so the folder is
+self-contained and can be moved or published as it is. The page has a thumbnail
+grid of every reel, a player with section jump buttons, and an approve /
+needs-changes verdict with notes per reel. "Copy all feedback" puts every
+verdict and note on the clipboard. <root>/notes.json ({slug: text}) adds a
+reviewer note to a reel.
 
 Usage: review.py <data root>
 """
-import glob, json, os, sys
+import glob, json, os, shutil, subprocess, sys
 
-ROOT = os.path.abspath(sys.argv[1]); OUT = os.path.join(ROOT, "review"); os.makedirs(OUT, exist_ok=True)
+ROOT = os.path.abspath(sys.argv[1]); OUT = os.path.join(ROOT, "review")
+for d in ("reels", "posters"):
+    shutil.rmtree(os.path.join(OUT, d), ignore_errors=True); os.makedirs(os.path.join(OUT, d))
+NOTES = json.load(open(os.path.join(ROOT, "notes.json"))) if os.path.exists(os.path.join(ROOT, "notes.json")) else {}
 TRACK_NAMES = {"1_chiptune": "Chiptune", "2_musicbox": "Music box", "3_lofi": "Lo-fi keys",
                "4_synthpop": "Synth-pop", "5_ukulele": "Ukulele + whistle"}
 def human(sec): return "%d s" % sec if sec < 90 else "%d min %02d s" % (sec // 60, sec % 60)
@@ -20,6 +26,9 @@ for mp in sorted(glob.glob(os.path.join(ROOT, "*", "out", "meta.json"))):
     m = json.load(open(mp)); epdir = os.path.basename(os.path.dirname(os.path.dirname(mp)))
     reel = os.path.join(ROOT, epdir, "reels", m["slug"] + ".mp4")
     if not os.path.exists(reel): continue
+    shutil.copy(reel, os.path.join(OUT, "reels", m["slug"] + ".mp4"))
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-ss", str(max(0, m["marks"]["outro"] - 1.0)), "-i", reel, "-frames:v", "1",
+                    "-vf", "scale=270:-2", "-q:v", "4", os.path.join(OUT, "posters", m["slug"] + ".jpg")], check=True)
     marks = []; steps = m.get("steps", [])
     for k, t in m["marks"].items():
         if k == "term": marks.append({"label": "Step 1", "tip": steps[0] if steps else "", "t": t})
@@ -28,8 +37,8 @@ for mp in sorted(glob.glob(os.path.join(ROOT, "*", "out", "meta.json"))):
         elif k == "game": marks.append({"label": "Demo", "tip": "", "t": t})
     eps.append({"id": m["slug"], "num": m["num"], "app": m["app"], "target": m["target"], "how": m["how"], "dur": m["dur"],
                 "track": TRACK_NAMES.get(m.get("track"), m.get("track", "")), "real": human(m["real_total"]),
-                "term": m.get("term_seconds"), "demo": m.get("demo_seconds"), "note": m.get("note", ""),
-                "src": "../%s/reels/%s.mp4" % (epdir, m["slug"]), "marks": sorted(marks, key=lambda x: x["t"])})
+                "term": m.get("term_seconds"), "demo": m.get("demo_seconds"), "note": NOTES.get(m["slug"], m.get("note", "")),
+                "src": "reels/%s.mp4" % m["slug"], "poster": "posters/%s.jpg" % m["slug"], "marks": sorted(marks, key=lambda x: x["t"])})
 eps.sort(key=lambda e: e["num"])
 
 HTML = r"""<!doctype html>
@@ -57,13 +66,14 @@ button:hover{border-color:var(--acc)} button.primary{background:var(--acc);borde
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;max-width:calc(min(76vh,840px)*9/16)}
 .chips button{padding:4px 9px;font-size:12.5px} .chips button.on{border-color:var(--acc);color:var(--acc)}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px}
-.ep{display:flex;gap:12px;align-items:center;width:100%;text-align:left;margin-bottom:8px;padding:9px 12px}
-.ep:last-child{margin-bottom:0}
-.ep .n{font:600 13px ui-monospace,Menlo,monospace;color:var(--dim);width:22px}
-.ep b{display:block} .ep span.m{color:var(--dim);font-size:13px}
-.ep.on{border-color:var(--acc);box-shadow:inset 3px 0 0 var(--acc)}
-.ep .st{margin-left:auto;font-size:12px;white-space:nowrap;font-weight:600}
-.st.ok{color:var(--ok)} .st.fix{color:var(--bad)} .st.none{color:var(--dim);font-weight:400}
+#eps{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:10px}
+.ep{display:block;padding:0;overflow:hidden;text-align:left;position:relative;background:var(--raise)}
+.ep img{display:block;width:100%;aspect-ratio:9/16;object-fit:cover;background:#000}
+.ep .cap{display:block;padding:6px 8px 7px;font-size:12px;line-height:1.3}
+.ep .cap b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .ep .cap i{font-style:normal;color:var(--dim)}
+.ep.on{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc)}
+.ep .st{position:absolute;top:6px;right:6px;font-size:11px;font-weight:600;padding:1px 7px;border-radius:9px;background:#0b1120e6}
+.st.ok{color:#3ddc84} .st.fix{color:#ff5c6c} .st.none{display:none}
 .facts{display:grid;grid-template-columns:auto 1fr;gap:3px 14px;font-size:13.5px;margin:0 0 12px} .facts dt{color:var(--dim)} .facts dd{margin:0}
 .verdict{display:flex;gap:8px;margin-bottom:10px} .verdict button{flex:1}
 .verdict button.on.ok{border-color:var(--ok);color:var(--ok);font-weight:600} .verdict button.on.fix{border-color:var(--bad);color:var(--bad);font-weight:600}
@@ -91,7 +101,7 @@ textarea{width:100%;min-height:84px;background:var(--raise);color:var(--tx);bord
       <textarea id="notes" placeholder="Notes for this reel: timing, text, music, anything to change"></textarea>
       <div class="acts"><button id="copy">Copy all feedback</button><span class="hint" id="copied" style="margin:0"></span></div>
       <p class="hint">Copy all feedback puts every reel's verdict and notes on the clipboard, ready to paste into the chat.</p></div>
-    <div class="card"><h2>Reels</h2><div id="eps"></div>
+    <div class="card"><h2>All reels</h2><div id="eps"></div>
       <p class="hint"><kbd>Space</kbd> play / pause · <kbd>←</kbd> <kbd>→</kbd> 2 s · <kbd>↑</kbd> <kbd>↓</kbd> previous / next reel · <kbd>A</kbd> approve · <kbd>N</kbd> needs changes</p></div>
   </div>
 </div>
@@ -109,11 +119,11 @@ const total = EPS.reduce((a, e) => a + e.dur, 0);
 
 function drawList(){
   $('eps').innerHTML = EPS.map((e, i) => { const s = st(e.id);
-    return '<button class="ep' + (i === cur ? ' on' : '') + '" data-i="' + i + '"><span class="n">' + String(e.num).padStart(2, '0') + '</span><div><b>' + esc(e.app) + ' → ' + esc(e.target) +
-      '</b><span class="m">' + esc(e.how) + ' · ' + e.dur.toFixed(1) + ' s · ' + esc(e.track) + '</span></div><span class="st ' + (s.verdict || 'none') + '">' +
-      (s.verdict === 'ok' ? '✓ approved' : s.verdict === 'fix' ? '✕ needs changes' : 'not reviewed') + '</span></button>'; }).join('');
-  const done = EPS.filter(e => st(e.id).verdict).length;
-  $('sub').textContent = EPS.length + ' reels · ' + (total / 60).toFixed(1) + ' min in total · ' + done + ' reviewed';
+    return '<button class="ep' + (i === cur ? ' on' : '') + '" data-i="' + i + '"><img loading="lazy" alt="" src="' + esc(e.poster) + '"><span class="st ' + (s.verdict || 'none') + '">' +
+      (s.verdict === 'ok' ? '✓ OK' : s.verdict === 'fix' ? '✕ fix' : '') + '</span><span class="cap"><b>' + String(e.num).padStart(2, '0') + ' · ' + esc(e.app) +
+      '</b><i>' + esc(e.target) + ' · ' + e.dur.toFixed(0) + ' s</i></span></button>'; }).join('');
+  const n = x => EPS.filter(e => st(e.id).verdict === x).length;
+  $('sub').textContent = EPS.length + ' reels · ' + (total / 60).toFixed(1) + ' min in total · ' + n('ok') + ' approved · ' + n('fix') + ' need changes · ' + (EPS.length - n('ok') - n('fix')) + ' to review';
 }
 function load(i, autoplay){
   cur = i; const e = EPS[i]; store.set('cur', e.id);

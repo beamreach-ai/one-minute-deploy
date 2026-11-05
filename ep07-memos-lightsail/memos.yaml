@@ -1,0 +1,9 @@
+serviceName: memos
+containers:
+  memos:
+    image: CHANGE-ME
+    ports:
+      "5230": HTTP
+publicEndpoint:
+  containerName: memos
+  containerPort: 5230
