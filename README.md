@@ -31,13 +31,13 @@ and their output and timings are recorded; the video is then drawn from that
 recording, with long waits shortened and labelled with the real elapsed time.
 
 ```bash
-AWS_PROFILE=<profile> reel/capture.sh work-ep01   # real deploy + gameplay capture (site stays up)
-ep01-2048-s3/cleanup.sh <bucket>                  # tear it down
-reel/build.sh work-ep01                           # picture, 5 soundtracks, reels, review page
+AWS_PROFILE=<profile> reel/capture.py ep01-2048-s3 work-ep01   # real deploy + walkthrough recording (site stays up)
+ep01-2048-s3/cleanup.sh <bucket>                               # tear it down
+reel/build.py ep01-2048-s3 work-ep01                           # picture + soundtrack -> work-ep01/reels/
 ```
 
-Needs Python 3 with `numpy`, `pillow` and `playwright`, plus `ffmpeg`. Fonts
-and the editor screen assume macOS.
+One `episode.py` per folder drives both the capture and the video, so what is
+on screen is what was run. See [`reel/README.md`](reel/README.md).
 
 Sister series: [1-Minute Hacking](https://github.com/beamreach-ai/one-minute-hacking).
 

@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
-# Five simple-melody soundtracks for a 1-Minute Deploy reel, arranged to the
-# reel's own beats (out/meta.json): a quiet tune under the terminal so the
+# Simple-melody soundtracks for a 1-Minute Deploy reel, arranged to the reel's
+# own beats (<work>/out/meta.json): a quiet tune under the terminal so the
 # keyboard is audible, a flourish exactly on LIVE, a fuller second tune under
-# the app demo, and a final chord on the outro (plus a thin reprise if the
-# cut has a "clean" section). Every keystroke the renderer logged gets a
-# mechanical key sound. The bar count under the terminal is picked per cut
-# so each track stays near its own tempo.  numpy only.
-# Usage: music.py <work dir>  ->  <work>/audio/<track>.wav        (music + keys)
-#                                 <work>/audio/<track>_music.wav  (music stem)
-#                                 <work>/audio/keys.wav           (keyboard stem)
+# the app demo, and a final chord landing on the outro. Every keystroke and
+# click the renderer logged gets its own sound. The bar count under the
+# terminal is picked per cut so each track stays near its own tempo. numpy only.
+# Usage: music.py <work dir> [track ...]   (default: all five tracks)
+#   -> <work>/audio/<track>.wav  (music + keys),  <work>/audio/tracks.json
 import json, os, sys, wave
 import numpy as np
 
@@ -308,6 +306,11 @@ def arrange(tr):
 # ---------------- keyboard ----------------
 def keysound(kind):
     n = int(.16 * SR); t = tt(n); s = np.zeros(n)
+    if kind == "click":                                               # mouse button: two short bright ticks
+        for d, a in ((0, .5), (.07, .3)):
+            k = int(.03 * SR); u = tt(k); x = rng.standard_normal(k); x = x - np.convolve(x, np.ones(3) / 3, "same")
+            place(s, (x * np.exp(-u * 700) + np.sin(2 * np.pi * 3100 * u) * np.exp(-u * 420) * .5) * a, d)
+        return s
     low = {"space": 135, "enter": 115, "back": 205, "arrow": 230}.get(kind, rng.uniform(190, 300))
     amp = {"space": 1.15, "enter": 1.35, "arrow": .7}.get(kind, 1.0) * rng.uniform(.8, 1.1)
     mid = rng.uniform(1300, 2400)
@@ -333,18 +336,12 @@ def write_wav(path, st):
 
 if __name__ == "__main__":
     os.makedirs(AUD, exist_ok=True)
-    STEM = 0.7                                    # stems leave headroom; same factor on both keeps the balance
-    kb = keys_bus(); write_wav(os.path.join(AUD, "keys.wav"), kb * STEM)
-    print("keys: %d events, peak %.2f" % (len(META["keys"]), np.max(np.abs(kb))))
-    infos = {}
-    for name, tr in TRACKS.items():
-        mus, info = arrange(tr); infos[name] = info
-        write_wav(os.path.join(AUD, name + "_music.wav"), mus * STEM)
+    want = sys.argv[2:] or list(TRACKS)
+    kb = keys_bus(); infos = {}
+    for name in want:
+        mus, info = arrange(TRACKS[name]); infos[name] = info
         mix = np.tanh((mus + kb) * 1.6) / np.tanh(1.6) * 0.89         # soft limiter
         write_wav(os.path.join(AUD, name + ".wav"), mix)
-        a, b = int(T_TERM * SR), int(T_LIVE * SR)
-        print("%-12s %5.1f bpm, %2d bars to LIVE (bar %.3fs)  demo@%.2f final@%.2f  rms term %.3f demo %.3f  peak %.2f" % (
-            name, info["bpm"], info["bars"], info["bar"], info["B"], info["final"],
-            np.sqrt(np.mean(mus[a:b] ** 2)), np.sqrt(np.mean(mus[int(info["B"] * SR):int(info["thin"] * SR)] ** 2)),
-            np.max(np.abs(mix))))
+        print("%-12s %5.1f bpm, %2d bars to LIVE  demo@%.2f final@%.2f  %d key/click sounds  peak %.2f" % (
+            name, info["bpm"], info["bars"], info["B"], info["final"], len(META["keys"]), np.max(np.abs(mix))))
     json.dump(infos, open(os.path.join(AUD, "tracks.json"), "w"), indent=1)
