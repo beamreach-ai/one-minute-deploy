@@ -1,0 +1,6 @@
+# episode work dirs (captures, frames, audio, rendered reels) are big and rebuilt
+work*/
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
